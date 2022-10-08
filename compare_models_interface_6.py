@@ -7,23 +7,24 @@ import math
 import copy
 import time
 import trimesh
-import argparse
 import numpy as np
 import pandas as pd
 import pyvista as pv
+import tkinter as tk
+import tkinter.ttk as ttk
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from stl import mesh  # numpy-stl library, not stl library!!
 from functools import reduce
 from tkinter import filedialog
+from tkinter import messagebox
 from pyntcloud import PyntCloud
-from trimesh import transformations
 from trimesh import convex
 from trimesh import inertia
+from trimesh import transformations
 from trimesh.exchange import export
 
 
-# convert surface-meshes into 3D-matrix representation:
 class MeshToMatrix:
 
     @staticmethod
@@ -171,9 +172,7 @@ class MeshToMatrix:
         for mesh_ind, org_mesh in enumerate(meshes):
             cur_vol = self.mesh_to_plane(org_mesh, shape)
             cur_vol_int = np.multiply(cur_vol, 1, dtype=np.uint8)
-            # rm_shape = cur_vol_int.shape
-            # print('Matrix shape:', rm_shape)
-            # cur_vol_int = cur_vol.astype(np.uint8)
+            # cur_vol_int = cur_vol.astype(uint8)
             resulting_matrices.append(cur_vol_int)
         return resulting_matrices
 
@@ -184,7 +183,7 @@ def make_mesh(input_file_paths, file_form):
     initial_meshes = []
     incorrect_mesh = 0
     for i, input_file_path in enumerate(input_file_paths):
-        if file_form[i] == 'csv':
+        if file_form[i] == '.csv':
             # .csv to .obj
             cloud = pd.read_csv(input_file_path, skiprows=1, header=None)
             cloud.columns = ["x", "y", "z"]
@@ -201,11 +200,10 @@ def make_mesh(input_file_paths, file_form):
             # save both meshes in a list:
             initial_meshes.append(a_mesh)
             os.remove('output.obj')
-        else:
+        elif file_form[i] == '.stl':
             # a_mesh = trimesh.load_mesh(input_file_path)
             a_mesh = trimesh.load(input_file_path)
             initial_meshes.append(a_mesh)
-            # convex hull for not watertight meshes:
             # if a_mesh.is_watertight:
             #     initial_meshes.append(a_mesh)
             # else:
@@ -225,7 +223,7 @@ def calculate_shape(meshes):
         mesh_max = np.maximum(mesh_max, a_mesh.max(axis=(0, 1)))
 
     bounding_box = mesh_max - mesh_min
-    bounding_box = bounding_box * 2  # 1 would be boundary box
+    bounding_box *= 2  # 1 would be boundary box
     shape = np.array(bounding_box)
     for i, x in np.ndenumerate(shape):
         shape[i] = math.ceil(x)
@@ -261,7 +259,6 @@ def rotate(the_mesh, v1, v2):
 def scale(initial_meshes, target_volume):
     for i in range(2):
         vol_i = initial_meshes[i].volume
-        # print('Volume:', vol_i)
         if target_volume > vol_i:
             percentage = vol_i / target_volume
             while round(percentage, 5) < 1.0:
@@ -295,7 +292,7 @@ def move(initial_meshes):
 
 
 # compute the volume-similarity:
-def compute_sims(initial_meshes):
+def compute_vol_sim(initial_meshes):
     vol_1 = initial_meshes[0].volume
     vol_2 = initial_meshes[1].volume
     larger = 0
@@ -328,7 +325,7 @@ def get_comparison_matrix(matrices):
     # matrices contain the finally shifted and scaled objects
     matrix2 = np.where(matrices[1] > 0, 2, matrices[1])  # matrix of 0s and 2s
     m_with_distinction = matrices[0] + matrix2  # matrices[0] is of 0s and 1s
-    # in m_with_distinction: 1s and 2s is where the objects differ, 3s is where they match/overlap
+    # in m_with_more_distinction: 1s and 2s is where the objects differ, 3s is where they match/overlap
     return m_with_distinction
 
 
@@ -653,20 +650,17 @@ def process_meshes(the_meshes, target, if_bb):
     elif track_sim == 21:
         print('Pose-normalisations with inertia-axes and with bounding-box equally good')
 
-    # trimesh.exchange.export.export_mesh(the_meshes[0], 'output_1.stl', file_type='stl')
-    # trimesh.exchange.export.export_mesh(the_meshes[1], 'output_2.stl', file_type='stl')
-
     return shape_similarity, final_matrices, the_meshes, count_mtm_time
 
 
 # plot a similarity-matrix containing 0s, 1s, 2s and 3s with plotly
-def plot_diff(m, dense, transparency, title):
+def plot_diff(m, density, transparency, title):
     x_light = math.ceil(m.shape[0] / 2)
     y_light = math.ceil(m.shape[1] / 2)
     z_light = math.ceil(m.shape[2] / 2)
     light_matrix = np.zeros((x_light, y_light, z_light))
     for index, val in np.ndenumerate(m):
-        if index[0] % dense == 0 and index[1] % dense == 0 and index[2] % dense == 0:
+        if index[0] % density == 0 and index[1] % density == 0 and index[2] % density == 0:
             if index[0] == 0:
                 index_x = 0
             else:
@@ -694,37 +688,37 @@ def plot_diff(m, dense, transparency, title):
         t = transparency
 
     fig = go.Figure(data=go.Volume(
-        x=a.flatten(),
-        y=b.flatten(),
-        z=c.flatten(),
-        value=values.flatten(),
-        isomin=1,
-        isomax=3,
-        opacity=t,  # needs to be small to see through all surfaces,
-        surface_count=10  # needs to be a large number for good volume rendering
-        # like transparency for plot_differences
-    ),
-        layout=go.Layout(title=go.layout.Title(text=title))
-    )
+                                   x=a.flatten(),
+                                   y=b.flatten(),
+                                   z=c.flatten(),
+                                   value=values.flatten(),
+                                   isomin=1,
+                                   isomax=3,
+                                   opacity=t,  # needs to be small to see through all surfaces,
+                                               # like transparency for plot_differences
+                                   surface_count=10,  # needs to be a large number for good volume rendering
+                                   ),
+                    layout=go.Layout(title=go.layout.Title(text=title))
+                    )
 
     fig.update_layout(scene=dict(
-        xaxis=dict(
-            showgrid=False,
-            showbackground=False,
-            visible=False,
-            zeroline=False),
-        yaxis=dict(
-            showgrid=False,
-            showbackground=False,
-            visible=False,
-            zeroline=False),
-        zaxis=dict(
-            showgrid=False,
-            showbackground=False,
-            visible=False,
-            zeroline=False)
-    )
-    )
+                                 xaxis=dict(
+                                            showgrid=False,
+                                            showbackground=False,
+                                            visible=False,
+                                            zeroline=False),
+                                 yaxis=dict(
+                                            showgrid=False,
+                                            showbackground=False,
+                                            visible=False,
+                                            zeroline=False),
+                                 zaxis=dict(
+                                            showgrid=False,
+                                            showbackground=False,
+                                            visible=False,
+                                            zeroline=False)
+                                 )
+                      )
 
     return fig
 
@@ -742,25 +736,19 @@ def plot_differences(m, dense, transparency, name, sim):
     z_three = []
     one = 0
     two = 0
-    count_1 = 0
-    count_2 = 0
-    count_3 = 0
     for index, val in np.ndenumerate(m):
         if index[0] % dense == 0 and index[1] % dense == 0 and index[2] % dense == 0:
             if val == 1:
                 one = 1
-                count_1 += 1
                 x_one.append(index[0])
                 y_one.append(index[1])
                 z_one.append(index[2])
             elif val == 2:
                 two = 1
-                count_2 += 1
                 x_two.append(index[0])
                 y_two.append(index[1])
                 z_two.append(index[2])
             elif val == 3:
-                count_3 += 1
                 x_three.append(index[0])
                 y_three.append(index[1])
                 z_three.append(index[2])
@@ -902,80 +890,54 @@ def plot_differences(m, dense, transparency, name, sim):
 
 
 # organise the output and the illustration with the different plotting options
-def illustrate(similarity_1, larger, similarity_3, m_wmd, final_meshes, original_meshes,
-               export_names, density=3, transparency=0.0, show=1, expo=0):
+def illustrate(m_wmd, final_meshes, original_meshes, show, density, transparency, sim_s,
+               export_name_1, export_name_2):
     plot_time = 0
-    if transparency < 0.0 or transparency > 1:
-        raise Exception('Transparency has to be between 0.0 and 1')
-    if show < 0 or show > 3:
-        raise Exception('show has to be 1 for yes or 0 for no')
-
-    if larger == 1:
-        print(str(export_names[0]) + ' volume > '
-              + str(export_names[1]) + ' volume')
-    elif larger == 2:
-        print(str(export_names[0]) + ' volume < '
-              + str(export_names[1]) + ' volume')
-    else:
-        print(str(export_names[0]) + ' volume = '
-              + str(export_names[1]) + ' volume')
-    similarity_1 = round(similarity_1, 4)
-    similarity_3 = round(similarity_3, 4)
-    print('     VOLUME-SIMILARITY:      ', similarity_1, '%')
-    print('     SHAPE-SIMILARITY:       ', similarity_3, '%')
-
-    if show == 1:  # plot with the pyvista Plotter
-        print('Illustration with pyvista plotter')
+    if show == 'matplotlib' or show == 'matplotlib(+export png)':
+        title = 'Representation of the two aligned objects, scaled to the same volume'
         start = time.time()
-        p_m_1 = pv.wrap(final_meshes[0])
-        p_m_2 = pv.wrap(final_meshes[1])
-        p_m_3 = pv.wrap(original_meshes[0])
-        p_m_4 = pv.wrap(original_meshes[1])
+        plot_differences(m_wmd, density, transparency, title, sim_s)  # plotly figure,scatter; comparison with scaling
+        if show == 'matplotlib(+export png)':
+            plt.savefig(str(export_name_1[0]) + '-vs.-' + str(export_name_2[0])
+                        + ' (matplotlib_illustration)' + '.png')
+        end = time.time()
+        plot_time = end - start
+        plt.show()
+    elif show == 'plotly(+export)' or show == 'plotly':
+        title = 'Representation of the two aligned objects, scaled to the same volume'
+        start = time.time()
+        figure = plot_diff(m_wmd, density, transparency, title)  # plotly go.Figure
+        if show == 'plotly':
+            figure.show()
+        elif show == 'plotly(+export)':
+            figure.write_html(str(export_name_1[0]) + '-vs.-' + str(export_name_2[0])
+                              + ' (plotly_illustration)' + '.html', auto_open=True)
+        end = time.time()
+        plot_time = end - start
+    elif show == 'pyvista plotter' or show == '(pyvista plotter(+export png)':  # plot with the pyvista Plotter
+        start = time.time()
+        p_m_1 = pv.wrap(original_meshes[0])
+        p_m_2 = pv.wrap(original_meshes[1])
+        p_m_3 = pv.wrap(final_meshes[0])
+        p_m_4 = pv.wrap(final_meshes[1])
         pl = pv.Plotter(shape=(1, 2), window_size=[1200, 600])
-        _ = pl.add_mesh(p_m_1, color='slateblue', opacity=0.5)  # skyblue and slateblue
-        _ = pl.add_mesh(p_m_2, color='skyblue', opacity=0.5)  # lightskyblue and darkblue
-        pl.add_title('Representation of the two normalised objects, scaled to the same volume',
+        _ = pl.add_mesh(p_m_1, color='slateblue', opacity=0.5)
+        _ = pl.add_mesh(p_m_2, color='skyblue', opacity=0.5)
+        pl.add_title('Representation of the original objects, moved to the same center of mass',
                      font_size=6, color='black')
         pl.subplot(0, 1)
         _ = pl.add_mesh(p_m_3, color='slateblue', opacity=0.5)
         _ = pl.add_mesh(p_m_4, color='skyblue', opacity=0.7)
-        pl.add_title('Representation of the original objects, moved to the same center of mass',
+        pl.add_title('Representation of the two normalised objects, scaled to the same volume',
                      font_size=6, color='black')
         pl.set_background('white')
         pl.camera.zoom(0.9)
         end = time.time()
         plot_time = end - start
-        if expo == 1:
-            pl.show(screenshot=str(export_names[0]) + '-vs.-' + str(export_names[1]) + ' (pyvista-illustration).png')
+        if show == 'pyvista plotter(+export png)':
+            pl.show(screenshot=str(export_name_1[0]) + '-vs.-' + str(export_name_2[0]) + ' (pyvista-illustration).png')
         else:
             pl.show()
-    elif show == 2:
-        print('Illustration with matplotlib:')
-        print('default density: 3                           set density:', density)
-        print('default transparency: 0.0 (automatic-mode)   set transparency:', transparency)
-        title = 'Representation of the two normalised objects, scaled to the same volume'
-        start = time.time()
-        plot_differences(m_wmd, density, transparency, title, similarity_3)  # comparison with scaling
-        if expo == 1:
-            plt.savefig(str(export_names[0]) + '-vs.-' + str(export_names[1])
-                        + ' (matplotlib-illustration)' + '.png')
-        end = time.time()
-        plot_time = end - start
-        plt.show()
-    elif show == 3:
-        print('Illustration with plotly:')
-        print('default density: 3                 set density:', density)
-        print('default transparency: 0.0 (=0.1)   set transparency:', transparency)
-        title = 'Representation of the two normalised objects, scaled to the same volume'
-        start = time.time()
-        figure = plot_diff(m_wmd, density, transparency, title)  # plotly go.Figure
-        if expo == 1:
-            figure.write_html(str(export_names[0]) + '-vs.-' + str(export_names[1])
-                              + ' (plotly-illustration)' + '.html', auto_open=True)
-        else:
-            figure.show()
-        end = time.time()
-        plot_time = end - start
 
     return plot_time
 
@@ -992,137 +954,522 @@ def export_matrix(the_matrix, name):
                         write.writerow([x, y, z, final_dimension])
 
 
-# check file formats to be .stl or .csv
-def file_format(files):
-    f = []
-    for file in files:
-        filename, ext = os.path.splitext(file)
-        if ext.lower() == '.stl':
-            f.append('stl')
-        elif ext.lower() == '.csv':
-            f.append('csv')
-        else:
-            raise ValueError('Wrong file format, only stl and csv allowed')
-    return f
-
-
 def main():
-    parser = argparse.ArgumentParser(description='Compute similarity of two 3d objects')
-    parser.add_argument('input', nargs='*')
-    parser.add_argument('--scale', type=int, default=100000, help='Target volume for the scaling')
-    parser.add_argument('--density', type=int, default=3, help='Density of points in 3D plot, 1 displays all points')
-    parser.add_argument('--transparency', type=float, default=0.0, help='Transparency-parameter for matplotlib- and '
-                                                                        'plotly-illustration; 0.0 = automatic-mode')
-    parser.add_argument('--show', type=int, default=1, help='Illustrate the results? '
-                                                            '1=pyvista-plotter 2=matplotlib 3=plotly 0=no illustration')
-    parser.add_argument('--export', type=int, default=0, help='Export comparison matrices and results? 1=yes, 0=no')
-    parser.add_argument('--boundingbox', type=int, default=1, help='Use the bounding box pose-normalisation '
-                                                                   'additionally to the inertia-alignment? 1=yes, 0=no')
+    window = tk.Tk()
+    window.title("Comparison of 3D objects")
+    window.geometry("800x600")
+    window.configure(bg='white')
+    window.resizable(False, False)
+    ws = window.winfo_screenwidth()
+    hs = window.winfo_screenheight()
+    x = (ws / 2) - 400
+    y = (hs / 2) - 330
+    window.geometry('+%d+%d' % (x, y))
 
-    args = parser.parse_args()
+    frame_00 = tk.Frame(window, bg='white', height=60, width=250)  # choose first file button
+    frame_01 = tk.Frame(window, bg='white', height=60, width=20)  # fill
+    frame_02 = tk.Frame(window, bg='white', height=60, width=250)  # choose second file button
+    frame_04 = tk.Frame(window, bg='white', height=60, width=80)  # fill
+    frame_05 = tk.Frame(window, bg='white', height=30)  # choose illustration text
+    frame_15 = tk.Frame(window, bg='white', height=30)  # choose illustration
+    frame_20 = tk.Frame(window, bg='white', height=60, width=250)  # first chosen file
+    frame_21 = tk.Frame(window, bg='white', height=60, width=20)  # fill
+    frame_22 = tk.Frame(window, bg='white', height=60, width=250)  # second chosen file
+    frame_24 = tk.Frame(window, bg='white', height=60, width=80)  # fill
+    frame_35 = tk.Frame(window, bg='white', height=10)  # extra settings text
+    frame_45 = tk.Frame(window, bg='white', height=30)  # density text
+    frame_46 = tk.Frame(window, bg='white', height=30)  # set density
+    frame_50 = tk.Frame(window, bg='white', height=30)
+    frame_52 = tk.Frame(window, bg='white', height=30, width=250)  # Set target-volume text
+    frame_55 = tk.Frame(window, bg='white', height=30)  # transparency text
+    frame_56 = tk.Frame(window, bg='white', height=30)  # set transparency
+    frame_60 = tk.Frame(window, bg='white', height=30)  # info box
+    frame_62 = tk.Frame(window, bg='white', height=30)  # Set target-volume
+    frame_63 = tk.Frame(window, bg='white', height=30)  # volume unit
+    frame_70 = tk.Frame(window, bg='white', height=30)  # restrictions box
+    frame_75 = tk.Frame(window, bg='white', height=30)  # decide matrix export
+    frame_80 = tk.Frame(window, bg='white', height=30)  # settings-info box
+    frame_82 = tk.Frame(window, bg='white', height=30)  # decide bounding box
+    frame_85 = tk.Frame(window, bg='white', height=30)  # decide results export
+    frame_90 = tk.Frame(window, bg='white', height=50)  # fill
+    frame_100 = tk.Frame(window, bg='white', height=60)  # Start comparison button
+    frame_110 = tk.Frame(window, bg='white', height=30)  # fill
+    frame_120 = tk.Frame(window, bg='white', height=40)  # results header
+    frame_130 = tk.Frame(window, bg='white', height=30, width=200)  # larger volume text
+    frame_133 = tk.Frame(window, bg='white', height=30, width=125)  # over all computation time text
+    frame_135 = tk.Frame(window, bg='white', height=30, width=100)  # over all computation time
+    frame_140 = tk.Frame(window, bg='white', height=30, width=100)  # volume-similarity text
+    frame_141 = tk.Frame(window, bg='white', height=30, width=100)  # volume-similarity result
+    frame_143 = tk.Frame(window, bg='white', height=30, width=125)  # time to mesh_to_matrix text
+    frame_145 = tk.Frame(window, bg='white', height=30, width=100)  # time to mesh_to_matrix
+    frame_150 = tk.Frame(window, bg='white', height=30, width=100)  # shape-similarity text
+    frame_151 = tk.Frame(window, bg='white', height=30, width=100)  # shape-similarity result
+    frame_153 = tk.Frame(window, bg='white', height=30, width=125)  # time to plt text
+    frame_155 = tk.Frame(window, bg='white', height=30, width=100)  # time to plt
+    frame_160 = tk.Frame(window, bg='white', height=30, width=100)  # convex-hull text
+    frame_163 = tk.Frame(window, bg='white', height=30, width=125)  # time to export text
+    frame_165 = tk.Frame(window, bg='white', height=30, width=100)  # time to export
+    frame_170 = tk.Frame(window, bg='white', width=250)  # fill
 
-    if args.scale < 100 or args.scale > 1000000:
-        raise Exception('Target-scaling-volume has to be between 100 and 1.000.000 mm^3')
-    if args.show == 1:
-        if args.density < 1 or args.density > 5:
-            raise Exception('Density-parameter has to be integer between 1 and 5 for matplotlib-illustration')
-    elif args.show == 2:
-        if args.density < 1 or args.density > 3:
-            raise Exception('Density-parameter has to be integer between 1 and 3 for plotly-illustration')
-    if args.transparency < 0.0 or args.transparency > 0.3:
-        raise Exception('Transparency-parameter has to be between 0.00 and 0.30')
-    if args.show < 0 or args.show > 3:
-        raise Exception('Show-parameter has to be integer between 0 and 3')
-    if args.export < 0 or args.export > 1:
-        raise Exception('Export-parameter has to be 0 or 1')
-    if args.boundingbox < 0 or args.boundingbox > 1:
-        raise Exception('Bounding-Box-parameter has to be 0 or 1')
+    frame_00.grid(row=0, column=0, sticky="nsew", rowspan=2)  # choose first file button
+    frame_01.grid(row=0, column=1, sticky="nsew", rowspan=2)  # fill
+    frame_02.grid(row=0, column=2, sticky="nsew", rowspan=2, columnspan=2)  # choose second file button
+    frame_04.grid(row=0, column=4, sticky="nsew", rowspan=2)  # fill
+    frame_05.grid(row=0, column=5, sticky="nsew", columnspan=2)  # choose illustration text
+    frame_15.grid(row=1, column=5, sticky="nsew", columnspan=2)  # choose illustration
+    frame_20.grid(row=2, column=0, sticky="nsew", rowspan=2)  # first chosen file
+    frame_21.grid(row=2, column=1, sticky="nsew", rowspan=2)  # fill
+    frame_22.grid(row=2, column=2, sticky="nsew", rowspan=2, columnspan=2)  # second chosen file
+    frame_24.grid(row=2, column=4, sticky="nsew", rowspan=2)  # fill
+    frame_35.grid(row=3, column=5, sticky="nsew", columnspan=2)  # extra settings text
+    frame_45.grid(row=4, column=5, sticky="nsew")  # density text
+    frame_46.grid(row=4, column=6, sticky="nsew")  # set density
+    frame_50.grid(row=5, column=0, sticky="nsew")
+    frame_52.grid(row=5, column=2, sticky="nsew", columnspan=2)  # Set target-volume text
+    frame_55.grid(row=5, column=5, sticky="nsew")  # transparency text
+    frame_56.grid(row=5, column=6, sticky="nsew")  # set transparency
+    frame_60.grid(row=6, column=0, sticky="nsew")  # info box
+    frame_62.grid(row=6, column=2, sticky="nsew")  # Set target-volume
+    frame_63.grid(row=6, column=3, sticky="nsew")  # volume unit
+    frame_70.grid(row=7, column=0, sticky="nsew")  # restrictions box
+    frame_75.grid(row=7, column=5, sticky="nsew", columnspan=2)  # decide matrix export
+    frame_80.grid(row=8, column=0, sticky="nsew")  # settings-info box
+    frame_82.grid(row=8, column=2, sticky="nsew")  # decide  bounding box
+    frame_85.grid(row=8, column=5, sticky="nsew", columnspan=2)  # decide results export
+    frame_90.grid(row=9, column=0, sticky="nsew")  # fill
+    frame_100.grid(row=10, column=0, sticky="nsew", columnspan=7)  # Start comparison button
+    frame_110.grid(row=11, column=0, sticky="nsew")  # fill
+    frame_120.grid(row=12, column=0, sticky="nsew", columnspan=6)  # results header
+    frame_130.grid(row=13, column=0, sticky="nsew",  columnspan=2)  # larger volume text
+    frame_133.grid(row=13, column=3, sticky="nsew", columnspan=2)  # over all computation time text
+    frame_135.grid(row=13, column=5, sticky="nsew")  # over all computation time
+    frame_140.grid(row=14, column=0, sticky="nsew")  # volume-similarity text
+    frame_141.grid(row=14, column=1, sticky="nsew", columnspan=2)  # volume-similarity result
+    frame_143.grid(row=14, column=3, sticky="nsew", columnspan=2)  # time to mesh_to_matrix text
+    frame_145.grid(row=14, column=5, sticky="nsew")  # time to mesh_to_matrix
+    frame_150.grid(row=15, column=0, sticky="nsew")  # shape-similarity text
+    frame_151.grid(row=15, column=1, sticky="nsew", columnspan=2)  # shape-similarity result
+    frame_153.grid(row=15, column=3, sticky="nsew", columnspan=2)  # time to plot text
+    frame_155.grid(row=15, column=5, sticky="nsew")  # time to plot
+    frame_160.grid(row=16, column=0, sticky="nsew")  # shape-similarity text
+    frame_163.grid(row=16, column=3, sticky="nsew", columnspan=2)  # time to export text
+    frame_165.grid(row=16, column=5, sticky="nsew")  # time to export
+    frame_170.grid(row=17, column=0, sticky="nsew")  # fill
 
-    # find file formats
-    f = file_format(args.input)
+    frame_20.config(highlightbackground='grey', highlightthickness=3)
+    frame_22.config(highlightbackground='grey', highlightthickness=3)
 
-    # open directory in case of no command line arguments
-    if args.input is None or len(args.input) != 2:
-        file_1 = filedialog.askopenfilename(initialdir=os.path.dirname(os.path.realpath("__file__")),
-                                            title="Select a File", filetypes=(("stl files", "*.stl*"),
-                                                                              ("csv files", "*.csv*")))
-        file_2 = filedialog.askopenfilename(initialdir=os.path.dirname(os.path.realpath("__file__")),
-                                            title="Select a File", filetypes=(("stl files", "*.stl*"),
-                                                                              ("csv files", "*.csv*")))
-        base_names = [os.path.basename(file_1), os.path.basename(file_2)]
-        files = [file_1, file_2]
-        f = file_format(files)
-    else:
-        base_names = []
-        for file in args.input:
-            base_names.append(os.path.basename(file))
-        files = args.input
+    frame_20.pack_propagate(False)
+    name_1 = tk.Label(frame_20, bg='white')
+    name_1.pack(fill='both', expand=True)
+    frame_22.pack_propagate(False)
+    name_2 = tk.Label(frame_22, bg='white')
+    name_2.pack(fill='both', expand=True)
 
-    start_all = time.time()
-    # convert stl and/or csv objects to trimesh mesh-objects:
-    trimesh_meshes, not_watertight = make_mesh(files, f)
+    frame_05.pack_propagate(False)
+    choose_illustration_text = tk.Label(frame_05, bg='white')
+    choose_illustration_text.pack(side='left', fill='both', expand=False)
+    choose_illustration_text.configure(text='Choose the illustration-method:', font=('Aerial', 10))
+    frame_15.pack_propagate(False)
+    style = ttk.Style()
+    style.theme_use('alt')
+    style.configure('TCombobox', background='lightgray', fieldbackground='lightgray', selectbackground='none',
+                    foreground='black', fieldforeground='black', selectforeground='black')
+    selected_illustration = tk.StringVar()
+    choose_illustration = ttk.Combobox(frame_15, textvariable=selected_illustration, state='readonly')
+    choose_illustration['values'] = ('pyvista plotter', 'matplotlib', 'plotly', 'plotly(+export)',
+                                     'none', 'matplotlib(+export png)', 'pyvista plotter(+export png)')
+    choose_illustration.current(0)  # set the selected item
+    choose_illustration.pack(fill='both', expand=True)
 
-    # calculate volume similarity and surface-area similarity:
-    volume_similarity, larger = compute_sims(trimesh_meshes)
+    frame_35.pack_propagate(False)
+    density_text = tk.Label(frame_35, bg='white')
+    density_text.pack(side='left', fill='both', expand=False)
+    density_text.configure(text='Settings for matplotlib and plotly:', font=('Aerial', 10))
 
-    original_meshes = copy.deepcopy(trimesh_meshes)
-    move(original_meshes)
+    # density of points in 3D plot, 1 displays all points
+    frame_45.pack_propagate(False)
+    density_text = tk.Label(frame_45, bg='white')
+    density_text.pack(side='left', fill='both', expand=False)
+    density_text.configure(text='Density:', font=('Aerial', 10))
+    frame_46.pack_propagate(False)
+    var_1 = tk.IntVar()
+    var_1.set(2)
+    get_density = tk.Spinbox(frame_46, from_=1, to=5, increment=1, width=3, textvariable=var_1, state='readonly')
+    get_density.pack(side='right', fill='x', expand=True)
+    get_density.configure(font=('Aerial', 10))
+    # density = float(var_1.get())
 
-    # compute final matrices for shape comparison and illustration:
-    shape_similarity, final_matrices, final_meshes, time_matrix = \
-        process_meshes(trimesh_meshes, args.scale, args.boundingbox)
+    # transparency of differing points (has to be between 0.01 and 1)
+    frame_55.pack_propagate(False)
+    transparency_text = tk.Label(frame_55, bg='white')
+    transparency_text.pack(side='left', fill='both', expand=False)
+    transparency_text.configure(text='Transparency:', font=('Aerial', 10))
+    frame_56.pack_propagate(False)
+    var_2 = tk.StringVar()
+    var_2.set('0.0')
+    get_transparency = tk.Spinbox(frame_56, from_=0.0, to=0.5, width=3, textvariable=var_2,
+                                  format='%.2f', increment=0.01, state='readonly')
+    get_transparency.pack(side='right', fill='x', expand=True)
+    get_transparency.configure(font=('Aerial', 10))
+    # transparency = float(var_2.get())
 
-    # calculate the matrix for illustration:
-    m_wmd = get_comparison_matrix(final_matrices)
+    frame_60.pack_propagate(False)
+    info_box = tk.Label(frame_60, bg='white')
+    info_box.pack(side='left', fill='both', expand=False)
 
-    end_all = time.time()
+    frame_52.pack_propagate(False)
+    density_text = tk.Label(frame_52, bg='white')
+    density_text.pack(side='left', fill='both', expand=False)
+    density_text.configure(text='Set scaling-target-volume:', font=('Aerial', 10))
 
-    # export m_wmd_1, m_og and results:
-    time_export = 0
-    if args.export == 1:
-        start = time.time()
-        export_matrix(m_wmd, str(base_names[0]) + '-vs.-' + str(base_names[1])
-                      + ' (comparison_matrix)')
-        end = time.time()
-        time_export = end - start
-        with open(str(base_names[0]) + '-vs.-' + str(base_names[1]) + ' (similarity-results)' + '.txt',
-                  'w') as text_file_results:
-            text_file_results.write(str(base_names[0]) + '-vs.-' + str(base_names[1]) + '\n\n')
-            if larger == 1:
-                text_file_results.write(str(base_names[0]) + ' volume > '
-                                        + str(base_names[1]) + ' volume\n')
-            elif larger == 2:
-                text_file_results.write(str(base_names[0]) + ' volume < '
-                                        + str(base_names[1]) + ' volume\n')
-            else:
-                text_file_results.write(str(base_names[0]) + ' volume = '
-                                        + str(base_names[1]) + ' volume\n')
-            if not_watertight == 1:
-                text_file_results.write(
-                    '(The convex hull of one input-mesh had to be used for comparison\n')
-            elif not_watertight == 2:
-                text_file_results.write(
-                    '(The convex hulls of both input-meshes had to be used for comparison\n')
-            text_file_results.write('\nVolume-similarity:    ' + str(round(volume_similarity, 4))
-                                    + ' %\n')
-            text_file_results.write('Shape-similarity:    ' + str(round(shape_similarity, 4)))
+    frame_70.pack_propagate(False)
+    info_box = tk.Label(frame_70, bg='white')
+    info_box.pack(side='left', fill='both', expand=False)
 
-    # output of results and illustration:
-    time_plot = illustrate(volume_similarity, larger, shape_similarity, m_wmd, final_meshes, original_meshes,
-                           base_names, args.density, args.transparency, args.show, args.export)
+    frame_62.pack_propagate(False)
+    tar_var = tk.IntVar()
+    tar_var.set(100000)
+    get_target = tk.Entry(frame_62, width=3, textvariable=tar_var)
+    get_target.pack(side='right', fill='x', expand=True)
+    get_target.configure(font=('Aerial', 10), bg='gray85')
 
-    print('time to compute:', round(end_all - start_all, 3), 'sec')
-    print('time to "mesh_to_matrix":', round(time_matrix, 3), 'sec')
-    if args.export == 1:
-        print('time to plot and export:', round(time_plot, 3), 'sec')
-        print('time to export matrices and results:', round(time_export, 3), 'sec')
-    else:
-        print('time to plot:', round(time_plot, 3), 'sec')
-    # if not_watertight == 1:
-    #     print('The convex hull of one input-mesh had to be used for comparison')
-    # elif not_watertight == 2:
-    #     print('The convex hulls of both input-meshes had to be used for comparison')
-    print()
+    frame_63.pack_propagate(False)
+    density_text = tk.Label(frame_63, bg='white')
+    density_text.pack(side='left', fill='both', expand=False)
+    density_text.configure(text='mm^3', font=('Aerial', 9))
+
+    frame_75.pack_propagate(False)
+    check_decision = tk.IntVar()
+    export_decision = tk.Checkbutton(frame_75, text='Export comparison matrices', variable=check_decision,
+                                     bg='white', activebackground='white')
+    export_decision.pack(side='left', fill='both', expand=False)
+    export_decision.configure(font=('Aerial', 10))
+
+    frame_80.pack_propagate(False)
+    info_box = tk.Label(frame_80, bg='white')
+    info_box.pack(side='left', fill='both', expand=False)
+
+    frame_82.pack_propagate(False)
+    check_check = tk.IntVar()
+    check_check.set(1)
+    bb_decision = tk.Checkbutton(frame_82, text='Use bounding box', variable=check_check,
+                                 bg='white', activebackground='white', onvalue=1, offvalue=0)
+    bb_decision.pack(side='left', fill='both', expand=False)
+    bb_decision.configure(font=('Aerial', 10))
+
+    frame_85.pack_propagate(False)
+    check_if = tk.IntVar()
+    results_export_decision = tk.Checkbutton(frame_85, text='Export results', variable=check_if,
+                                             bg='white', activebackground='white')
+    results_export_decision.pack(side='left', fill='both', expand=False)
+    results_export_decision.configure(font=('Aerial', 10))
+
+    frame_120.pack_propagate(False)
+    names = tk.Label(frame_120, bg='white')
+    names.pack(side='left', fill='both', expand=False)
+    names.configure(font=('Aerial', 11, 'underline'))
+
+    frame_130.pack_propagate(False)
+    larger_text = tk.Label(frame_130, bg='white')
+    larger_text.pack(side='left', fill='both', expand=False)
+    larger_text.configure(font=('Aerial', 10))
+
+    frame_140.pack_propagate(False)
+    similarity_volume_text = tk.Label(frame_140, bg='white')
+    similarity_volume_text.pack(side='left', fill='both', expand=False)
+    similarity_volume_text.configure(text='Volume-similarity:', font=('Aerial', 12))
+    frame_150.pack_propagate(False)
+    similarity_shape_text = tk.Label(frame_150, bg='white')
+    similarity_shape_text.pack(side='left', fill='both', expand=False)
+    similarity_shape_text.configure(text='Shape-similarity:', font=('Aerial', 12))
+
+    frame_160.pack_propagate(False)
+    convex_text = tk.Label(frame_160, bg='white')
+    convex_text.pack(side='left', fill='both', expand=False)
+    convex_text.configure(font=('Aerial', 10))
+
+    frame_133.pack_propagate(False)
+    computation_time_text = tk.Label(frame_133, bg='white')
+    computation_time_text.pack(side='left', fill='both', expand=False)
+    computation_time_text.configure(text='Computation time:', font=('Aerial', 10))
+    frame_143.pack_propagate(False)
+    matrix_time_text = tk.Label(frame_143, bg='white')
+    matrix_time_text.pack(side='left', fill='both', expand=False)
+    matrix_time_text.configure(text='Time to "mesh-to-matrix":', font=('Aerial', 10))
+    frame_153.pack_propagate(False)
+    plot_time_text = tk.Label(frame_153, bg='white')
+    plot_time_text.pack(side='left', fill='both', expand=False)
+    plot_time_text.configure(text='Time to plot and export:', font=('Aerial', 10))
+    frame_163.pack_propagate(False)
+    export_time_text = tk.Label(frame_163, bg='white')
+    export_time_text.pack(side='left', fill='both', expand=False)
+    export_time_text.configure(text='Time to export matrix+results:', font=('Aerial', 10))
+
+    frame_141.pack_propagate(False)
+    similarity_volume = tk.Label(frame_141, bg='white')
+    similarity_volume.pack(side='left', fill='both', expand=False)
+    similarity_volume.configure(text='0 %', font=('Aerial', 12))
+    frame_151.pack_propagate(False)
+    similarity_shape = tk.Label(frame_151, bg='white')
+    similarity_shape.pack(side='left', fill='both', expand=False)
+    similarity_shape.configure(text='0 %', font=('Aerial', 12))
+
+    frame_135.pack_propagate(False)
+    computation_time = tk.Label(frame_135, bg='white')
+    computation_time.pack(side='left', fill='both', expand=False)
+    computation_time.configure(text='0 sec', font=('Aerial', 10))
+    frame_145.pack_propagate(False)
+    matrix_time = tk.Label(frame_145, bg='white')
+    matrix_time.pack(side='left', fill='both', expand=False)
+    matrix_time.configure(text='0 sec', font=('Aerial', 10))
+    frame_155.pack_propagate(False)
+    plot_time = tk.Label(frame_155, bg='white')
+    plot_time.pack(side='left', fill='both', expand=False)
+    plot_time.configure(text='0 sec', font=('Aerial', 10))
+    frame_165.pack_propagate(False)
+    export_time = tk.Label(frame_165, bg='white')
+    export_time.pack(side='left', fill='both', expand=False)
+    export_time.configure(text='0 sec', font=('Aerial', 10))
+
+    frame_170.pack_propagate(False)
+    info_box = tk.Label(frame_170, bg='white')
+    info_box.pack(side='left', fill='both', expand=False)
+
+    file_1 = []
+    basename_1 = []
+    file_2 = []
+    basename_2 = []
+
+    def clicked_button_first():
+        file = filedialog.askopenfilename(initialdir=os.path.dirname(os.path.realpath("__file__")),
+                                          title="Select a File", filetypes=(("stl files", "*.stl*"),
+                                                                            ("csv files", "*.csv*")))
+        basename = os.path.basename(file)
+        name_1.configure(text=basename, font=('Aerial', 10))
+        basename_1.clear()
+        basename_1.append(basename)
+        file_1.clear()
+        if file != '':
+            file_1.append(file)
+
+    def clicked_button_second():
+        file = filedialog.askopenfilename(initialdir=os.path.dirname(os.path.realpath("__file__")),
+                                          title="Select a File", filetypes=(("stl files", "*.stl*"),
+                                                                            ("csv files", "*.csv*")))
+        basename = os.path.basename(file)
+        name_2.configure(text=basename, font=('Aerial', 10))
+        basename_2.clear()
+        basename_2.append(basename)
+        file_2.clear()
+        if file != '':
+            file_2.append(file)
+
+    def clicked_button_third():
+        lines = ['- Volume-similarity = volume of the smaller object',
+                 '                                     / sum of both volumes',
+                 '- Shape-similarity = overlapping volume (after the objects',
+                 '                                                                      where normalised)',
+                 '                                   / target-volume (scaling-volume of both'
+                 '                                                                    objects)']
+        messagebox.showinfo('Information', "\n".join(lines))
+
+    def clicked_button_fourth():
+        lines = ['- The accuracy increases with the target volume',
+                 '- The accuracy decreases for .csv objects because of the',
+                 '  convex hull that is needed for conversion',
+                 '- The computation-time increases with the size of the objects',
+                 '  and with usage of the bounding-box normalisation',
+                 '- The pose-normalisation is not always optimal, which has a',
+                 '  high impact on the results']
+        messagebox.showinfo('Restrictions', "\n".join(lines))
+
+    def clicked_button_fifth():
+        lines = ['- Scaling-target-volume: reference-volume, that both ',
+                 '                                          objects are scaled to before',
+                 '                                          comparison (the higher the more',
+                 '                                          accurate, the lower the more',
+                 '                                          efficient)',
+                 '- bounding box: additional normalisation-method to extend',
+                 '                             the inertia-method',
+                 '- pyvista-plotter additionally provides visualisation of the',
+                 '   volume-similarity',
+                 '- Density: every xth point is displayed',
+                 '- Transparency: changes the appearance',
+                 '- Transparency=0.0 starts the automatic-mode (optimized',
+                 '                            for scaling target-volume of 100.000 and',
+                 '                            resolution of 1920x1080)',
+                 '- Recommended setting for matplotlib:',
+                 '          Density 3, Transparency 0.05-0.2',
+                 '          Density 2, Transparency 0.04-0.1',
+                 '          Density 1, Transparency 0.01-0.02',
+                 '- Recommended settings for plotly:',
+                 '          Density 1-3',
+                 '          Transparency 0.06-0.2',
+                 '- Export-matrix: 3D numpy arrays of 0s(no object),',
+                 '                           1s(only first object), 2s(only second object)',
+                 '                           and 3s(both objects) as .csv files',
+                 '- Export results: calculated similarity values as .txt file']
+        messagebox.showinfo('Settings-information', "\n".join(lines))
+
+    def main_process():
+        start_all = time.time()
+
+        if selected_illustration.get() == 'pyvista plotter' \
+                or selected_illustration.get() == 'matplotlib' \
+                or selected_illustration.get() == 'plotly':
+            plot_time_text.configure(text='Time to plot:', font=('Aerial', 10))
+
+        names.configure(text='')
+        larger_text.configure(text='')
+        convex_text.configure(text='')
+        similarity_volume.configure(text='?')
+        similarity_shape.configure(text='?')
+        computation_time.configure(text='?')
+        matrix_time.configure(text='?')
+        export_time.configure(text='?')
+        plot_time.configure(text='?')
+
+        if selected_illustration.get() == 'plotly' or selected_illustration.get() == 'plotly(+export)':
+            if var_1.get() > 3:
+                messagebox.showinfo('Error', 'Density has to be between 1 and 3 for plotly-illustration!')
+                return
+        if tar_var.get() < 1000 or tar_var.get() > 1000000:
+            messagebox.showinfo('Error', 'Target-volume has to be between 1.000 and 1.000.000')
+            return
+
+        if bool(file_1) and bool(file_2):
+            # get file formats
+            files = [file_1[0], file_2[0]]
+            name_unused, format_1 = os.path.splitext(file_1[0])
+            name_unused, format_2 = os.path.splitext(file_2[0])
+            f = [format_1, format_2]
+
+            # convert stl and/or csv objects to trimesh mesh-objects:
+            trimesh_meshes, not_watertight = make_mesh(files, f)
+
+            # calculate volume similarity and surface-area similarity:
+            volume_similarity, larger_object = compute_vol_sim(trimesh_meshes)
+
+            original_meshes = copy.deepcopy(trimesh_meshes)
+            move(original_meshes)
+
+            # compute final matrices for shape comparison and illustration:
+            target_vol = tar_var.get()
+            try:
+                shape_similarity, final_matrices, final_meshes, time_matrix = \
+                    process_meshes(trimesh_meshes, target_vol, check_check.get())
+
+                # calculate the matrices for illustration:
+                m_wmd = get_comparison_matrix(final_matrices)
+
+                end_all = time.time()
+
+                start = time.time()
+                # export m_wmd:
+                if check_decision.get():
+                    export_matrix(m_wmd, str(basename_1[0]) + '-vs.-' + str(basename_2[0]) + ' (comparison_matrix)')
+
+                # export results:
+                if check_if.get():
+                    with open(str(basename_1[0]) + '-vs.-' + str(basename_2[0]) + ' (similarity-results)' + '.txt',
+                              'w') as text_file_results:
+                        text_file_results.write(str(basename_1[0]) + '-vs.-' + str(basename_2[0]) + '\n\n')
+                        if larger_object == 1:
+                            text_file_results.write(str(basename_1[0]) + ' volume > '
+                                                    + str(basename_2[0]) + ' volume\n')
+                        elif larger_object == 2:
+                            text_file_results.write(str(basename_1[0]) + ' volume < '
+                                                    + str(basename_2[0]) + ' volume\n')
+                        else:
+                            text_file_results.write(str(basename_1[0]) + ' volume = '
+                                                    + str(basename_2[0]) + ' volume\n')
+                        if not_watertight == 1:
+                            text_file_results.write(
+                                '(The convex hull of one input-mesh had to be used for comparison\n')
+                        elif not_watertight == 2:
+                            text_file_results.write(
+                                '(The convex hulls of both input-meshes had to be used for comparison\n')
+                        text_file_results.write('\nVolume-similarity:    ' + str(round(volume_similarity, 4))
+                                                + ' %\n')
+                        text_file_results.write('Shape-similarity:    ' + str(round(shape_similarity, 4)))
+
+                end = time.time()
+                time_export = end - start
+
+                # output of results and illustration:
+                show = selected_illustration.get()
+                names.configure(text=str(basename_1[0]) + '  vs.  ' + str(basename_2[0]))
+                if larger_object == 1:
+                    larger_text.configure(text=str(basename_1[0]) + ' volume > ' + str(basename_2[0]) + ' volume\n')
+                elif larger_object == 2:
+                    larger_text.configure(text=str(basename_1[0]) + ' volume < ' + str(basename_2[0]) + ' volume\n')
+                else:
+                    larger_text.configure(text=str(basename_1[0]) + ' volume = ' + str(basename_2[0]) + ' volume\n')
+                if not_watertight == 1:
+                    convex_text.configure('(the convex hull of one input-mesh had to be used for comparison)')
+                elif not_watertight == 2:
+                    convex_text.configure('(the convex hulls of both input-meshes had to be used for comparison)')
+                similarity_volume.configure(text=str(round(volume_similarity, 4)) + ' %')
+                similarity_shape.configure(text=str(round(shape_similarity, 4)) + ' %')
+                computation_time.configure(text=str(round(end_all - start_all, 3)) + ' sec')
+                matrix_time.configure(text=str(round(time_matrix, 3)) + ' sec')
+                export_time.configure(text=str(round(time_export, 3)) + ' sec')
+
+                dense = float(var_1.get())
+                transpar = float(var_2.get())
+                time_plot = illustrate(m_wmd, final_meshes, original_meshes, show, dense, transpar,
+                                       shape_similarity, basename_1, basename_2)
+                plot_time.configure(text=str(round(time_plot, 3)) + ' sec')
+
+            except:
+                if selected_illustration.get() == 'matplotlib' \
+                        or selected_illustration.get() == 'matplotlib(+export png)':
+                    messagebox.showinfo('Error', 'Scaling-target-volume too large for this computer '
+                                                 'or too small for reasonable matplotlib-illustration')
+                else:
+                    messagebox.showinfo('Error', 'Scaling-target-volume too large for this computer')
+
+        else:
+            messagebox.showinfo('Error', 'Choose two objects to compare!')
+
+    btn_1 = tk.Button(frame_00, text="Choose first object", bg="darkgrey", fg="black",
+                      font=('Aerial', 10), command=clicked_button_first, activebackground='grey')
+    btn_1.pack(fill='both', expand=True)
+    btn_1.bind("<Enter>", lambda e: btn_1.config(bg='grey'))
+    btn_1.bind("<Leave>", lambda e: btn_1.config(bg='darkgrey'))
+    btn_2 = tk.Button(frame_02, text="Choose second object", bg="darkgrey", fg="black",
+                      font=('Aerial', 10), command=clicked_button_second, activebackground='grey')
+    btn_2.pack(fill='both', expand=True)
+    btn_2.bind("<Enter>", lambda e: btn_2.config(bg='grey'))
+    btn_2.bind("<Leave>", lambda e: btn_2.config(bg='darkgrey'))
+    btn_3 = tk.Button(frame_60, text="information", font=('Aerial', 11), command=clicked_button_third,
+                      fg='salmon', bg='white', relief='flat', activebackground='white', activeforeground='orangered')
+    btn_3.pack(side='left', fill='both', expand=False)
+    btn_3.bind("<Enter>", lambda e: btn_3.config(fg='orangered'))
+    btn_3.bind("<Leave>", lambda e: btn_3.config(fg='salmon'))
+    btn_4 = tk.Button(frame_70, text="restrictions", font=('Aerial', 11), command=clicked_button_fourth,
+                      fg='salmon', bg='white', relief='flat', activebackground='white', activeforeground='orangered')
+    btn_4.pack(side='left', fill='both', expand=False)
+    btn_4.bind("<Enter>", lambda e: btn_4.config(fg='orangered'))
+    btn_4.bind("<Leave>", lambda e: btn_4.config(fg='salmon'))
+    btn_5 = tk.Button(frame_80, text="settings-information", font=('Aerial', 11), command=clicked_button_fifth,
+                      fg='salmon', bg='white', relief='flat', activebackground='white', activeforeground='orangered')
+    btn_5.pack(side='left', fill='both', expand=False)
+    btn_5.bind("<Enter>", lambda e: btn_5.config(fg='orangered'))
+    btn_5.bind("<Leave>", lambda e: btn_5.config(fg='salmon'))
+    frame_100.pack_propagate(False)
+    btn_go = tk.Button(frame_100, text="Start comparison", bg="lightblue", fg="black", font=('Aerial', 11),
+                       command=main_process, cursor="hand2", activebackground='lightskyblue')
+    # get the similarities from main_process
+    btn_go.pack(fill='both', expand=True)
+    btn_go.bind("<Enter>", lambda e: btn_go.config(bg='lightskyblue'))
+    btn_go.bind("<Leave>", lambda e: btn_go.config(bg='lightblue'))
+
+    window.columnconfigure(6, weight=1)
+    window.rowconfigure(17, weight=1)
+
+    window.mainloop()
 
 
 if __name__ == "__main__":
