@@ -1,35 +1,38 @@
 # compare-3d-objects
 
-Requirements:
-	trimesh~=3.12.9
-	numpy~=1.23.1
-	pandas~=1.4.3
-	pyvista~=0.36.1
-	matplotlib~=3.5.2
-	plotly~=5.9.0
-	numpy-stl~=2.17.1
-	pyntcloud~=0.3.1
+Requirements: \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; trimesh~=3.12.9 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; numpy~=1.23.1 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pandas~=1.4.3 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pyvista~=0.36.1 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; matplotlib~=3.5.2 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; plotly~=5.9.0 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; numpy-stl~=2.17.1 \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pyntcloud~=0.3.1
 
+<br>
 
 Execution:
-- Running "compare_models_final.py" works without settings-adjustment
-- The results will be printed in the terminal
+- Running "compare_models_final.py" works without settings-adjustment (the results will be printed in the terminal)
 - Command-line execution allows adjustment of settings: 
   python compare_models_final.py input_1.stl(or .csv) input2.stl(or .csv) --options
-- Options: --scale x(integer between 100 and 1.000.000, default 100.000) 
-		 -> target-scaling-volume
-	     --density x(integer between 1 and 5 for x and 1 and 3 for y, default 3) 
-		 -> illustration-variable: every xth point is displayed
-	     --transparency x.x(foating point number between 0.0 and xy, default 0.0 is automatic-mode) 
-		 -> variable of the illustration-appearance
-	     --show x(integer between 0 and 3, default 1) 
-		 -> select the illustration-method: 1=pyvista-plotter 2=matplotlib 3=plotly 0=none
-	     --export x(integer between 0 and 1, default 0) 
-		 -> yes=1 no=0 for exporting the object matrix, the similarity results and the illustration
-	     --boundingbox (integer between 0 and 1, default 1) 
-		 -> yes=1 no=0 for using the bounding box in the normalisation process
+- Options: \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --scale x(integer between 100 and 1.000.000, default 100.000) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> target-scaling-volume \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --density x(integer between 1 and 5 for x and 1 and 3 for y, default 3) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> illustration-variable: every xth point is displayed \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --transparency x.x(foating point number between 0.0 and xy, default 0.0 is automatic-mode) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> variable of the illustration-appearance \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --show x(integer between 0 and 3, default 1) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> select the illustration-method: 1=pyvista-plotter 2=matplotlib 3=plotly 0=none \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --export x(integer between 0 and 1, default 0) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> yes=1 no=0 for exporting the object matrix, the similarity results and the illustration \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --boundingbox (integer between 0 and 1, default 1) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> yes=1 no=0 for using the bounding box in the normalisation process
 - Running compare_models_interface_final.py provides user-interface
+- [donwload .exe application of the user-interface script form google drive](https://drive.google.com/file/d/14y_kFhS_WtN7LKfyKwF03NxBgSiKPPL6/view?usp=sharing)
 
+<br>
 
 Information:
 - Scaling-target-volume: reference-volume, that both objects are scaled to before comparison 
