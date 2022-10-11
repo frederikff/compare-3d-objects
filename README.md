@@ -1,6 +1,6 @@
 # compare-3d-objects
 
-Requirements: \
+### Requirements
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; trimesh~=3.12.9 \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; numpy~=1.23.1 \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pandas~=1.4.3 \
@@ -12,7 +12,7 @@ Requirements: \
 
 <br>
 
-Execution:
+### Execution
 - Running "compare_models_final.py" works without settings-adjustment (the results will be printed in the terminal)
 - Command-line execution allows adjustment of settings: 
   python compare_models_final.py input_1.stl(or .csv) input2.stl(or .csv) --options
@@ -34,7 +34,7 @@ Execution:
 
 <br>
 
-Information:
+### Information
 - Scaling-target-volume: reference-volume, that both objects are scaled to before comparison 
 - Bounding box: additional normalisation-method to extend the inertia-method
 - Pyvista-plotter additionally provides visualisation of the volume-similarity
@@ -47,9 +47,15 @@ Information:
 - Export-matrix: 3D numpy arrays of 0s(no object), 1s(only first object), 2s(only second object) and 3s(both objects) as .csv files
 - Export results: calculated similarity values as .txt file
 
+<br>
 
-Restrictions:
+### Restrictions
 - The accuracy increases with the target volume
 - The accuracy decreases for .csv objects because of the convex hull that is needed for conversion
 - The computation-time increases with the target-volume and with usage of the bounding-box normalisation
 - The pose-normalisation is not always optimal, which has a high impact on the results
+
+<br>
+
+### License
+MIT
