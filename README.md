@@ -21,7 +21,7 @@ Execution:
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> target-scaling-volume \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --density x(integer between 1 and 5 for x and 1 and 3 for y, default 3) \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> illustration-variable: every xth point is displayed \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --transparency x.x(foating point number between 0.0 and xy, default 0.0 is automatic-mode) \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --transparency x.x(foating point number between 0.0 and 0.5, default 0.0 is automatic-mode) \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> variable of the illustration-appearance \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; --show x(integer between 0 and 3, default 1) \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> select the illustration-method: 1=pyvista-plotter 2=matplotlib 3=plotly 0=none \
